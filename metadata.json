@@ -1,0 +1,6 @@
+{
+  "name": "AWS Control Center",
+  "description": "Single-user admin command center for Aligarh Web Solutions to manage client domains, hosting services, invoices, uptime, and automated renewal reminders.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

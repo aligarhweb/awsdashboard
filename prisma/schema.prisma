@@ -1,0 +1,740 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum PreferredChannel {
+  EMAIL
+  WHATSAPP
+  BOTH
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProviderKey {
+  HOSTINGER
+  GODADDY
+  REDIFF
+  SPACESHIP
+  CLOUDFLARE
+  OTHER
+}
+
+enum ProviderType {
+  REGISTRAR
+  HOST
+  BOTH
+}
+
+enum DomainStatus {
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  REDEMPTION
+  TRANSFERRED
+}
+
+enum WhoPays {
+  CLIENT
+  ME
+}
+
+enum ServiceType {
+  HOSTING
+  EMAIL_HOSTING
+  SSL
+  MAINTENANCE_AMC
+  CDN
+  OTHER
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  MULTI_YEAR
+}
+
+enum ServiceStatus {
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+}
+
+enum EstimateStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum GstMode {
+  CGST_SGST
+  IGST
+  NONE
+}
+
+enum PaymentMethod {
+  UPI
+  BANK
+  CASH
+  RAZORPAY
+  OTHER
+}
+
+enum ReminderItemType {
+  DOMAIN
+  SERVICE
+  INVOICE
+  ESTIMATE
+  UPTIME
+}
+
+enum MessageChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SKIPPED
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model User {
+  id                  String    @id @default(cuid())
+  email               String    @unique @db.VarChar(191)
+  name                String    @db.VarChar(191)
+  passwordHash        String    @db.VarChar(255)
+  totpSecretEncrypted String?   @db.Text
+  totpEnabled         Boolean   @default(false)
+  resetTokenHash      String?   @db.VarChar(255)
+  resetTokenExpiresAt DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  sessions Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique @db.VarChar(255)
+  ipAddress String?  @db.VarChar(64)
+  userAgent String?  @db.VarChar(512)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Client {
+  id               String           @id @default(cuid())
+  name             String           @db.VarChar(191)
+  company          String?          @db.VarChar(191)
+  contactPerson    String?          @db.VarChar(191)
+  emails           Json
+  whatsappPhone    String?          @db.VarChar(32)
+  secondaryPhones  Json?
+  address          String?          @db.Text
+  state            String?          @db.VarChar(100)
+  gstin            String?          @db.VarChar(32)
+  notes            String?          @db.Text
+  preferredChannel PreferredChannel @default(BOTH)
+  remindersEnabled Boolean          @default(true)
+  status           ClientStatus     @default(ACTIVE)
+  tags             Json?
+  publicStatusToken String?         @unique @db.VarChar(128)
+  isDemo           Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  domains     Domain[]
+  services    Service[]
+  websites    Website[]
+  estimates   Estimate[]
+  invoices    Invoice[]
+  payments    Payment[]
+  creditNotes CreditNote[]
+  expenses    Expense[]
+  messageLogs MessageLog[]
+  attachments Attachment[]
+  tasks       Task[]
+
+  @@index([status])
+  @@index([whatsappPhone])
+}
+
+model ProviderAccount {
+  id                      String       @id @default(cuid())
+  name                    String       @db.VarChar(191)
+  providerKey             ProviderKey  @default(OTHER)
+  type                    ProviderType @default(BOTH)
+  loginEmail              String?      @db.VarChar(191)
+  accountUrl              String?      @db.VarChar(512)
+  notes                   String?      @db.Text
+  apiCredentialsEncrypted String?      @db.Text
+  apiSyncEnabled          Boolean      @default(false)
+  isDemo                  Boolean      @default(false)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  domains  Domain[]
+  services Service[]
+
+  @@index([providerKey])
+}
+
+model Domain {
+  id                 String       @id @default(cuid())
+  name               String       @unique @db.VarChar(255)
+  clientId           String
+  providerAccountId  String?
+  registeredOn       DateTime?
+  expiryDate         DateTime
+  autoRenew          Boolean      @default(false)
+  nameservers        Json?
+  dnsProvider        String?      @db.VarChar(191)
+  whoisPrivacy       Boolean      @default(true)
+  costPrice          Decimal      @default(0) @db.Decimal(12, 2)
+  sellingPrice       Decimal      @default(0) @db.Decimal(12, 2)
+  renewalYears       Int          @default(1)
+  status             DomainStatus @default(ACTIVE)
+  notes              String?      @db.Text
+  lastRdapVerifiedAt DateTime?
+  rdapExpiryDate     DateTime?
+  rdapMismatch       Boolean      @default(false)
+  rdapUnsupported    Boolean      @default(false)
+  whoPays            WhoPays      @default(CLIENT)
+  dnsSnapshot        Json?
+  sslExpiryDate      DateTime?
+  isDemo             Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  providerAccount ProviderAccount? @relation(fields: [providerAccountId], references: [id], onDelete: SetNull)
+  serviceLinks    ServiceDomain[]
+  websites        Website[]
+  invoiceItems    InvoiceItem[]
+  expenses        Expense[]
+  attachments     Attachment[]
+  tasks           Task[]
+
+  @@index([clientId])
+  @@index([providerAccountId])
+  @@index([expiryDate])
+  @@index([status])
+}
+
+model Service {
+  id                String        @id @default(cuid())
+  type              ServiceType   @default(HOSTING)
+  providerAccountId String?
+  planName          String        @db.VarChar(191)
+  clientId          String
+  startDate         DateTime?
+  renewalDate       DateTime
+  billingCycle      BillingCycle  @default(YEARLY)
+  costPrice         Decimal       @default(0) @db.Decimal(12, 2)
+  sellingPrice      Decimal       @default(0) @db.Decimal(12, 2)
+  autoRenew         Boolean       @default(false)
+  status            ServiceStatus @default(ACTIVE)
+  notes             String?       @db.Text
+  isDemo            Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  providerAccount ProviderAccount? @relation(fields: [providerAccountId], references: [id], onDelete: SetNull)
+  domainLinks     ServiceDomain[]
+  invoiceItems    InvoiceItem[]
+  expenses        Expense[]
+  tasks           Task[]
+
+  @@index([clientId])
+  @@index([providerAccountId])
+  @@index([renewalDate])
+  @@index([status])
+}
+
+model ServiceDomain {
+  serviceId String
+  domainId  String
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  domain  Domain  @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@id([serviceId, domainId])
+  @@index([domainId])
+}
+
+model Website {
+  id                 String    @id @default(cuid())
+  url                String    @db.VarChar(512)
+  label              String?   @db.VarChar(191)
+  clientId           String
+  domainId           String?
+  intervalMinutes    Int       @default(5)
+  expectedStatusCode Int       @default(200)
+  requiredKeyword    String?   @db.VarChar(255)
+  timeoutMs          Int       @default(10000)
+  failureThreshold   Int       @default(2)
+  consecutiveFailures Int      @default(0)
+  isDown             Boolean   @default(false)
+  alertContacts      Json?
+  notifyClient       Boolean   @default(false)
+  paused             Boolean   @default(false)
+  sslExpiry          DateTime?
+  lastCheckedAt      DateTime?
+  lastResponseMs     Int?
+  publicStatusToken  String?   @unique @db.VarChar(128)
+  isDemo             Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  domain    Domain?       @relation(fields: [domainId], references: [id], onDelete: SetNull)
+  checks    UptimeCheck[]
+  incidents Incident[]
+
+  @@index([clientId])
+  @@index([domainId])
+  @@index([paused])
+}
+
+model UptimeCheck {
+  id         String   @id @default(cuid())
+  websiteId  String
+  checkedAt  DateTime @default(now())
+  up         Boolean
+  httpCode   Int?
+  responseMs Int?
+  error      String?  @db.VarChar(512)
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId, checkedAt])
+}
+
+model Incident {
+  id              String    @id @default(cuid())
+  websiteId       String
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  durationSeconds Int?
+  notifiedOwner   Boolean   @default(false)
+  notifiedClient  Boolean   @default(false)
+  errorSummary    String?   @db.VarChar(512)
+
+  website Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId, startedAt])
+}
+
+model CatalogItem {
+  id          String   @id @default(cuid())
+  name        String   @db.VarChar(191)
+  description String?  @db.Text
+  hsnSac      String?  @db.VarChar(32)
+  defaultRate Decimal  @default(0) @db.Decimal(12, 2)
+  taxPercent  Decimal  @default(18) @db.Decimal(5, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Estimate {
+  id                 String         @id @default(cuid())
+  estimateNumber     String         @unique @db.VarChar(64)
+  zohoEstimateId     String?        @unique @db.VarChar(64)
+  clientId           String
+  referenceNumber    String?        @db.VarChar(191)
+  projectName        String?        @db.VarChar(191)
+  placeOfSupply      String?        @db.VarChar(100)
+  issueDate          DateTime
+  validUntil         DateTime
+  gstMode            GstMode        @default(CGST_SGST)
+  subtotal           Decimal        @default(0) @db.Decimal(12, 2)
+  discountTotal      Decimal        @default(0) @db.Decimal(12, 2)
+  taxTotal           Decimal        @default(0) @db.Decimal(12, 2)
+  roundOff           Decimal        @default(0) @db.Decimal(10, 2)
+  adjustmentLabel    String?        @db.VarChar(64)
+  total              Decimal        @default(0) @db.Decimal(12, 2)
+  notes              String?        @db.Text
+  terms              String?        @db.Text
+  status             EstimateStatus @default(DRAFT)
+  publicToken        String         @unique @db.VarChar(128)
+  clientComment      String?        @db.Text
+  convertedInvoiceId String?        @db.VarChar(64)
+  viewedAt           DateTime?
+  respondedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  client Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  items  EstimateItem[]
+
+  @@index([clientId])
+  @@index([status])
+}
+
+model EstimateItem {
+  id          String  @id @default(cuid())
+  estimateId  String
+  itemName    String? @db.VarChar(191)
+  description String  @db.Text
+  hsnSac      String? @db.VarChar(32)
+  qty         Decimal @default(1) @db.Decimal(10, 2)
+  rate        Decimal @default(0) @db.Decimal(12, 2)
+  discount    Decimal @default(0) @db.Decimal(12, 2)
+  taxPercent  Decimal @default(18) @db.Decimal(5, 2)
+  lineTotal   Decimal @default(0) @db.Decimal(12, 2)
+  sortOrder   Int     @default(0)
+
+  estimate Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+
+  @@index([estimateId])
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique @db.VarChar(64)
+  financialYear   String        @db.VarChar(16)
+  clientId        String
+  referenceNumber String?       @db.VarChar(191)
+  projectName     String?       @db.VarChar(191)
+  placeOfSupply   String?       @db.VarChar(100)
+  issueDate       DateTime
+  dueDate         DateTime
+  gstMode         GstMode       @default(CGST_SGST)
+  subtotal        Decimal       @default(0) @db.Decimal(12, 2)
+  discountTotal   Decimal       @default(0) @db.Decimal(12, 2)
+  cgstTotal       Decimal       @default(0) @db.Decimal(12, 2)
+  sgstTotal       Decimal       @default(0) @db.Decimal(12, 2)
+  igstTotal       Decimal       @default(0) @db.Decimal(12, 2)
+  taxTotal        Decimal       @default(0) @db.Decimal(12, 2)
+  roundOff        Decimal       @default(0) @db.Decimal(10, 2)
+  adjustmentLabel String?       @db.VarChar(64)
+  total           Decimal       @default(0) @db.Decimal(12, 2)
+  amountPaid      Decimal       @default(0) @db.Decimal(12, 2)
+  status          InvoiceStatus @default(DRAFT)
+  notes           String?       @db.Text
+  terms           String?       @db.Text
+  publicToken     String        @unique @db.VarChar(128)
+  viewedAt        DateTime?
+  recurring       Boolean       @default(false)
+  recurringCycle  BillingCycle?
+  nextRecurringAt DateTime?
+  razorpayOrderId String?       @db.VarChar(128)
+  razorpayLinkUrl String?       @db.VarChar(512)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  items       InvoiceItem[]
+  payments    Payment[]
+  creditNotes CreditNote[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([financialYear])
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  itemName    String? @db.VarChar(191)
+  description String  @db.Text
+  hsnSac      String? @db.VarChar(32)
+  qty         Decimal @default(1) @db.Decimal(10, 2)
+  rate        Decimal @default(0) @db.Decimal(12, 2)
+  discount    Decimal @default(0) @db.Decimal(12, 2)
+  taxPercent  Decimal @default(18) @db.Decimal(5, 2)
+  lineTotal   Decimal @default(0) @db.Decimal(12, 2)
+  domainId    String?
+  serviceId   String?
+  sortOrder   Int     @default(0)
+
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  domain  Domain?  @relation(fields: [domainId], references: [id], onDelete: SetNull)
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([domainId])
+  @@index([serviceId])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  receiptNumber String        @unique @db.VarChar(64)
+  invoiceId     String
+  clientId      String
+  paidAt        DateTime
+  amount        Decimal       @db.Decimal(12, 2)
+  method        PaymentMethod @default(UPI)
+  referenceUtr  String?       @db.VarChar(128)
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([clientId])
+  @@index([paidAt])
+}
+
+model CreditNote {
+  id               String   @id @default(cuid())
+  creditNoteNumber String   @unique @db.VarChar(64)
+  invoiceId        String
+  clientId         String
+  issuedAt         DateTime
+  amount           Decimal  @db.Decimal(12, 2)
+  reason           String?  @db.Text
+  createdAt        DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([clientId])
+}
+
+model Expense {
+  id        String   @id @default(cuid())
+  date      DateTime
+  category  String   @db.VarChar(100)
+  vendor    String   @db.VarChar(191)
+  amount    Decimal  @db.Decimal(12, 2)
+  notes     String?  @db.Text
+  clientId  String?
+  domainId  String?
+  serviceId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client  Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  domain  Domain?  @relation(fields: [domainId], references: [id], onDelete: SetNull)
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([clientId])
+}
+
+model ReminderRule {
+  id         String           @id @default(cuid())
+  name       String           @db.VarChar(191)
+  itemType   ReminderItemType
+  offsets    Json
+  channels   Json
+  templateId String?
+  enabled    Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  template MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([itemType, enabled])
+}
+
+model MessageTemplate {
+  id                String         @id @default(cuid())
+  slug              String         @unique @db.VarChar(100)
+  name              String         @db.VarChar(191)
+  language          String         @default("en") @db.VarChar(16)
+  channel           MessageChannel
+  subject           String?        @db.VarChar(255)
+  body              String         @db.Text
+  waTemplateName    String?        @db.VarChar(191)
+  waLanguageCode    String?        @db.VarChar(16)
+  waVariableMapping Json?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  rules ReminderRule[]
+  logs  MessageLog[]
+}
+
+model MessageLog {
+  id                String         @id @default(cuid())
+  clientId          String?
+  channel           MessageChannel
+  templateId        String?
+  renderedSubject   String?        @db.VarChar(255)
+  renderedContent   String         @db.Text
+  entityType        String?        @db.VarChar(64)
+  entityId          String?        @db.VarChar(64)
+  offsetDays        Int?
+  idempotencyKey    String?        @unique @db.VarChar(191)
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  status            MessageStatus  @default(QUEUED)
+  providerMessageId String?        @db.VarChar(191)
+  error             String?        @db.Text
+  retryCount        Int            @default(0)
+  nextRetryAt       DateTime?
+  direction         String         @default("OUTBOUND") @db.VarChar(16)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  client   Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  template MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([status, scheduledAt])
+  @@index([entityType, entityId])
+}
+
+model Settings {
+  id                       Int      @id @default(1)
+  businessName             String   @default("Aligarh Web Solutions") @db.VarChar(191)
+  businessState            String   @default("Uttar Pradesh") @db.VarChar(100)
+  address                  String?  @db.Text
+  gstin                    String?  @db.VarChar(32)
+  pan                      String?  @db.VarChar(32)
+  bankName                 String?  @db.VarChar(191)
+  bankAccountNumber        String?  @db.VarChar(64)
+  bankIfsc                 String?  @db.VarChar(32)
+  bankAccountName          String?  @db.VarChar(191)
+  upiId                    String?  @db.VarChar(128)
+  logoDataUrl              String?  @db.MediumText
+  invoicePrefix            String   @default("INV") @db.VarChar(32)
+  estimatePrefix           String   @default("EST") @db.VarChar(32)
+  receiptPrefix            String   @default("RCPT") @db.VarChar(32)
+  defaultTaxRate           Decimal  @default(18) @db.Decimal(5, 2)
+  gstEnabled               Boolean  @default(true)
+  defaultInvoiceTerms      String?  @db.Text
+  defaultEstimateTerms     String?  @db.Text
+  currency                 String   @default("INR") @db.VarChar(8)
+  timezone                 String   @default("Asia/Kolkata") @db.VarChar(64)
+  smtpHost                 String   @default("smtp.hostinger.com") @db.VarChar(191)
+  smtpPort                 Int      @default(465)
+  smtpSecure               Boolean  @default(true)
+  smtpUser                 String?  @db.VarChar(191)
+  smtpPassEncrypted        String?  @db.Text
+  smtpFromName             String   @default("Aligarh Web Solutions") @db.VarChar(191)
+  smtpFromEmail            String?  @db.VarChar(191)
+  emailProvider            String   @default("SMTP") @db.VarChar(32)
+  emailApiKeyEncrypted     String?  @db.Text
+  whatsappPhoneNumberId    String?  @db.VarChar(128)
+  whatsappBusinessAccountId String? @db.VarChar(128)
+  whatsappAccessTokenEnc   String?  @db.Text
+  whatsappVerifyTokenEnc   String?  @db.Text
+  whatsappAppSecretEnc     String?  @db.Text
+  ownerAlertEmail          String?  @db.VarChar(191)
+  ownerAlertWhatsapp       String?  @db.VarChar(32)
+  quietHoursStart          String   @default("20:00") @db.VarChar(8)
+  quietHoursEnd            String   @default("09:00") @db.VarChar(8)
+  reminderEvalHourIst      Int      @default(6)
+  dryRunMode               Boolean  @default(false)
+  recurringAutoSend        Boolean  @default(false)
+  razorpayEnabled          Boolean  @default(false)
+  razorpayKeyId            String?  @db.VarChar(128)
+  razorpayKeySecretEnc     String?  @db.Text
+  razorpayWebhookSecretEnc String?  @db.Text
+  updatedAt                DateTime @updatedAt
+}
+
+model JobState {
+  jobName     String    @id @db.VarChar(64)
+  lastRunAt   DateTime?
+  lastSuccessAt DateTime?
+  lastStatus  String?   @db.VarChar(32)
+  lastSummary String?   @db.Text
+  lockedUntil DateTime?
+  lockedBy    String?   @db.VarChar(128)
+  updatedAt   DateTime  @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorEmail String?  @db.VarChar(191)
+  action     String   @db.VarChar(128)
+  entityType String?  @db.VarChar(64)
+  entityId   String?  @db.VarChar(64)
+  summary    String   @db.VarChar(512)
+  metadata   Json?
+  ipAddress  String?  @db.VarChar(64)
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  clientId  String?
+  domainId  String?
+  filename  String   @db.VarChar(255)
+  mimeType  String   @db.VarChar(128)
+  sizeBytes Int
+  data      Bytes    @db.LongBlob
+  notes     String?  @db.VarChar(512)
+  createdAt DateTime @default(now())
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  domain Domain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([domainId])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String     @db.VarChar(255)
+  description String?    @db.Text
+  dueDate     DateTime?
+  status      TaskStatus @default(OPEN)
+  priority    String     @default("NORMAL") @db.VarChar(16)
+  clientId    String?
+  domainId    String?
+  serviceId   String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  client  Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  domain  Domain?  @relation(fields: [domainId], references: [id], onDelete: SetNull)
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@index([status, dueDate])
+  @@index([clientId])
+}
