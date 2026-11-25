@@ -20,14 +20,15 @@ This guide covers deploying **AWS Control Center** from a private GitHub reposit
 
 ## 3. Connect the Private GitHub Repository
 1. Push your repository to a private GitHub repo.
-2. In hPanel → **Websites → Manage → Node.js Apps** (or **Git** deployment for your Node.js app):
-   - **Node.js Version**: `20.x` (20 LTS or newer; `package.json` specifies `"node": ">=20"`).
-   - **Application Root / Subdomain**: `app.aligarhwebsolutions.com`.
+2. In hPanel → **Websites → Add Website → Node.js Web App** (or **Manage → Node.js Apps**):
+   - **Framework / Application Type**: Select **Express** (or **Other / Custom Node.js**) — **do NOT leave it on Vite or React**. Because `vite.config.ts` and `index.html` live at the repository root, Hostinger's auto-detector otherwise treats the project as a static HTML site and skips starting the Express server.
+   - **Node.js Version**: `20.x` or `22.x` (`package.json` specifies `"node": ">=20"`).
+   - **Application Root / Subdomain**: `app.aligarhwebsolutions.com` (Root Directory `/`).
    - **GitHub Repository**: Connect your private GitHub account and select the repo + branch (`main`).
    - **Build Command**: `npm install && npm run build`
      *(Runs `prisma generate`, builds the React frontend to `dist/`, and compiles `server.ts` to `dist/server.js`.)*
-   - **Start Command**: `npm start`
-     *(Executes `node dist/server.js`, listening on `process.env.PORT`.)*
+   - **Start Command / Entry File**: `npm start` *(or `dist/server.js`, which listens on `process.env.PORT`)*
+   - **Output Directory**: Leave empty/default (ignored for Express apps).
 
 ## 4. Configure Environment Variables in hPanel
 In hPanel → Node.js App → **Environment Variables**, add:
