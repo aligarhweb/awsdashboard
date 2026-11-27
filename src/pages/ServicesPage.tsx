@@ -15,6 +15,7 @@ import { formatINR } from '../../shared/currency';
 import { UrgencyTag } from '../components/UrgencyTag';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CsvImportModal } from '../components/CsvImportModal';
+import { QuickAddProviderBox } from '../components/QuickAddProviderBox';
 import { useToast } from '../components/Toast';
 
 interface ServicesPageProps {
@@ -70,6 +71,7 @@ export function ServicesPage({ initialWindow = 'ALL', onOpenClient, onOpenInvoic
   const [form, setForm] = useState(emptyServiceForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [quickAddProviderOpen, setQuickAddProviderOpen] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<ServiceDTO | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -136,6 +138,7 @@ export function ServicesPage({ initialWindow = 'ALL', onOpenClient, onOpenInvoic
       clientId: clients[0]?.id || '',
       providerAccountId: providers[0]?.id || '',
     });
+    setQuickAddProviderOpen(false);
     setFormError(null);
     setModalOpen(true);
   }
@@ -157,6 +160,7 @@ export function ServicesPage({ initialWindow = 'ALL', onOpenClient, onOpenInvoic
       domainIds: (s.linkedDomains || []).map((d) => d.id),
       notes: s.notes || '',
     });
+    setQuickAddProviderOpen(false);
     setFormError(null);
     setModalOpen(true);
   }
@@ -532,7 +536,10 @@ export function ServicesPage({ initialWindow = 'ALL', onOpenClient, onOpenInvoic
               </h2>
               <button
                 type="button"
-                onClick={() => setModalOpen(false)}
+                onClick={() => {
+                  setQuickAddProviderOpen(false);
+                  setModalOpen(false);
+                }}
                 className="rounded-md p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <X className="h-5 w-5" />
@@ -591,20 +598,58 @@ export function ServicesPage({ initialWindow = 'ALL', onOpenClient, onOpenInvoic
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Provider Account
-                  </label>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Provider Account
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setQuickAddProviderOpen((v) => !v)}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 whitespace-nowrap"
+                    >
+                      {quickAddProviderOpen ? (
+                        'Close'
+                      ) : (
+                        <>
+                          <Plus className="h-3 w-3" /> Add New
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <select
                     value={form.providerAccountId}
-                    onChange={(e) => setForm({ ...form, providerAccountId: e.target.value })}
+                    onChange={(e) => {
+                      if (e.target.value === '__ADD_NEW__') {
+                        setQuickAddProviderOpen(true);
+                        return;
+                      }
+                      setForm({ ...form, providerAccountId: e.target.value });
+                    }}
                     className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm"
                   >
                     <option value="">Manual / Unassigned</option>
                     {providers.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
+                    <option value="__ADD_NEW__">+ Add new registrar / provider...</option>
                   </select>
                 </div>
+                {quickAddProviderOpen && (
+                  <div className="sm:col-span-2">
+                    <QuickAddProviderBox
+                      defaultType="HOST"
+                      onCreated={(created) => {
+                        setProviders((prev) =>
+                          [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+                        );
+                        setForm((prev) => ({ ...prev, providerAccountId: created.id }));
+                        setQuickAddProviderOpen(false);
+                        showToast(`Added provider ${created.name}`, 'success');
+                      }}
+                      onCancel={() => setQuickAddProviderOpen(false)}
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Renewal Date *
@@ -723,7 +768,10 @@ export function ServicesPage({ initialWindow = 'ALL', onOpenClient, onOpenInvoic
               <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setModalOpen(false)}
+                  onClick={() => {
+                    setQuickAddProviderOpen(false);
+                    setModalOpen(false);
+                  }}
                   className="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200"
                 >
                   Cancel
